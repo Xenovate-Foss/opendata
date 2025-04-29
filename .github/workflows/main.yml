@@ -1,4 +1,4 @@
-name: Update All README Files with Recent Changes
+name: Update READMEs and Jekyll Pages
 
 on:
   push:
@@ -30,14 +30,44 @@ jobs:
           pip install PyGithub
       
       - name: Update README files with recent changes
-        run: python .github/scripts/update_readmes.py
+        run: python .github/scripts/update_jekyll_readmes.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Commit and push if README files changed
+      - name: Commit and push if files changed
         run: |
           git config --global user.name 'GitHub Action Bot'
           git config --global user.email 'action@github.com'
           git add "**/*.md"
-          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update README files with recent changes"
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update README files and Jekyll pages with recent changes"
           git push
+  
+  # This job runs after the README updates and deploys the Jekyll site
+  build-jekyll:
+    needs: update-readmes
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
+      
+      - name: Install Jekyll and dependencies
+        run: |
+          gem install jekyll bundler
+          bundle install
+      
+      - name: Build site
+        run: bundle exec jekyll build
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          publish_branch: gh-pages  # Use the branch your GitHub Pages is configured to use
