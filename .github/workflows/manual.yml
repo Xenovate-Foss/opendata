@@ -1,25 +1,60 @@
-# This is a basic workflow that is manually triggered
+# This is a basic workflow that is manually triggered and runs on multiple OS platforms
 
-name: install script test
+name: Multi-OS Installation Script Test
 
-# Controls when the action will run. Workflow runs when manually triggered using the UI
-# or API.
+# Controls when the action will run
 on:
   push:
     branches: ["main"]
-    
   workflow_dispatch:
-    
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "greet"
-  greet:
+  install:
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-
+    runs-on: ${{ matrix.os }}
+    
+    # Define a matrix strategy to run on multiple operating systems
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    # Runs a single command using the runners shell
-    - name: test script
-      run: curl -s https://opendata.xenovate.dpdns.org/docs/rexon/installer.sh | bash
+    - name: Install on ${{ matrix.os }}
+      run: |
+        # Create an expect script to handle interactive prompts
+        cat > installer_automation.exp << 'EOF'
+        #!/usr/bin/expect -f
+        # Set timeout for expect commands
+        set timeout 300
+
+        # Start the installation script
+        spawn bash -c "curl -s https://opendata.xenovate.dpdns.org/docs/rexon/installer.sh | bash"
+
+        # Handle JDK prompt - press Enter for default (17)
+        expect {
+          "JDK" { send "\r"; exp_continue }
+          "PlayIt" { send "yes\r"; exp_continue }
+          "finished" { puts "\nInstallation completed successfully\n" }
+          timeout { puts "\nTimeout occurred\n"; exit 1 }
+          eof { puts "\nEOF reached\n" }
+        }
+        
+        # Wait for the process to finish
+        expect eof
+        EOF
+        
+        # Install expect if needed
+        if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          sudo apt-get update
+          sudo apt-get install -y expect
+        elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+          brew install expect
+        fi
+        
+        # Make the expect script executable
+        chmod +x installer_automation.exp
+        
+        # Run the expect script
+        ./installer_automation.exp
