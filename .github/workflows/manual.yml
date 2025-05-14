@@ -62,13 +62,37 @@ jobs:
     - name: Install on macOS
       if: matrix.os == 'macos-latest'
       run: |
+        # Install expect
+        brew install expect
+        
         # Download the installer script
         curl -s https://opendata.xenovate.dpdns.org/docs/rexon/installer.sh > installer.sh
-        
-        # Create an answers file
-        echo "17" > answers.txt
-        echo "yes" >> answers.txt
-        
-        # Run the script and provide answers
         chmod +x installer.sh
-        cat answers.txt | ./installer.sh
+        
+        # Create a more robust expect script for macOS
+        cat > macos_install.exp << 'EOF'
+        #!/usr/bin/expect -f
+        
+        # Set a longer timeout
+        set timeout 1200
+        
+        # Run the installer
+        spawn ./installer.sh
+        
+        # Wait for JDK prompt and send Enter to accept default
+        expect "Choose JDK version*default: 17*: "
+        send "\r"
+        
+        # Wait for PlayIt prompt and send yes
+        expect "*PlayIt*"
+        send "yes\r"
+        
+        # Wait for completion
+        expect eof
+        EOF
+        
+        # Make it executable
+        chmod +x macos_install.exp
+        
+        # Run with detailed logging
+        ./macos_install.exp
