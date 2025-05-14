@@ -21,40 +21,54 @@ jobs:
     
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    - name: Install on ${{ matrix.os }}
+    - name: Install on Ubuntu
+      if: matrix.os == 'ubuntu-latest'
       run: |
-        # Create an expect script to handle interactive prompts
-        cat > installer_automation.exp << 'EOF'
-        #!/usr/bin/expect -f
-        # Set timeout for expect commands
-        set timeout 300
-
-        # Start the installation script
-        spawn bash -c "curl -s https://opendata.xenovate.dpdns.org/docs/rexon/installer.sh | bash"
-
-        # Handle JDK prompt - press Enter for default (17)
-        expect {
-          "JDK" { send "\r"; exp_continue }
-          "PlayIt" { send "yes\r"; exp_continue }
-          "finished" { puts "\nInstallation completed successfully\n" }
-          timeout { puts "\nTimeout occurred\n"; exit 1 }
-          eof { puts "\nEOF reached\n" }
-        }
+        # Install expect
+        sudo apt-get update
+        sudo apt-get install -y expect
         
-        # Wait for the process to finish
-        expect eof
+        # Create a script to download the installer
+        cat > download_script.sh << 'EOF'
+        #!/bin/bash
+        curl -s https://opendata.xenovate.dpdns.org/docs/rexon/installer.sh > installer.sh
+        chmod +x installer.sh
         EOF
         
-        # Install expect if needed
-        if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-          sudo apt-get update
-          sudo apt-get install -y expect
-        elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          brew install expect
-        fi
+        chmod +x download_script.sh
+        ./download_script.sh
         
-        # Make the expect script executable
-        chmod +x installer_automation.exp
+        # Create an expect script for Ubuntu
+        cat > run_installer.exp << 'EOF'
+        #!/usr/bin/expect -f
         
-        # Run the expect script
-        ./installer_automation.exp
+        # Set timeout
+        set timeout 600
+        
+        # Run the installer
+        spawn ./installer.sh
+        
+        # Handle JDK prompt - press Enter for default (17)
+        expect {
+          "Choose JDK version" { send "\r"; exp_continue }
+          "Do you want to install PlayIt" { send "yes\r"; exp_continue }
+          eof { exit 0 }
+        }
+        EOF
+        
+        chmod +x run_installer.exp
+        ./run_installer.exp
+        
+    - name: Install on macOS
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Download the installer script
+        curl -s https://opendata.xenovate.dpdns.org/docs/rexon/installer.sh > installer.sh
+        
+        # Create an answers file
+        echo "17" > answers.txt
+        echo "yes" >> answers.txt
+        
+        # Run the script and provide answers
+        chmod +x installer.sh
+        cat answers.txt | ./installer.sh
