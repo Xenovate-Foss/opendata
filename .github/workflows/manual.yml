@@ -1,4 +1,4 @@
-# This is a basic workflow that is manually triggered and runs on multiple OS platforms
+# This is a workflow that runs on multiple OS platforms
 
 name: Multi-OS Installation Script Test
 
@@ -21,78 +21,29 @@ jobs:
     
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+    - name: Download installation script
+      run: |
+        # Download the installer script to a file
+        curl -s https://opendata.xenovate.dpdns.org/docs/rexon/installer.sh > installer.sh
+        chmod +x installer.sh
+    
     - name: Install on Ubuntu
       if: matrix.os == 'ubuntu-latest'
       run: |
-        # Install expect
-        sudo apt-get update
-        sudo apt-get install -y expect
+        # Create a modified version of the script that doesn't require interactive input
+        cat installer.sh | sed 's/read JDK_VERSION/JDK_VERSION=17/' | sed 's/read yn/yn=y/' > non_interactive_installer.sh
+        chmod +x non_interactive_installer.sh
         
-        # Create a script to download the installer
-        cat > download_script.sh << 'EOF'
-        #!/bin/bash
-        curl -s https://opendata.xenovate.dpdns.org/docs/rexon/installer.sh > installer.sh
-        chmod +x installer.sh
-        EOF
-        
-        chmod +x download_script.sh
-        ./download_script.sh
-        
-        # Create an expect script for Ubuntu
-        cat > run_installer.exp << 'EOF'
-        #!/usr/bin/expect -f
-        
-        # Set timeout
-        set timeout 600
-        
-        # Run the installer
-        spawn ./installer.sh
-        
-        # Handle JDK prompt - press Enter for default (17)
-        expect {
-          "Choose JDK version" { send "\r"; exp_continue }
-          "Do you want to install PlayIt" { send "yes\r"; exp_continue }
-          eof { exit 0 }
-        }
-        EOF
-        
-        chmod +x run_installer.exp
-        ./run_installer.exp
+        # Run the modified script (may require sudo)
+        sudo ./non_interactive_installer.sh
         
     - name: Install on macOS
       if: matrix.os == 'macos-latest'
       run: |
-        # Install expect
-        brew install expect
+        # Create a modified version of the script that doesn't require interactive input
+        # macOS sed is different from GNU sed, requires slightly different syntax
+        cat installer.sh | sed 's/read JDK_VERSION/JDK_VERSION=17/' | sed 's/read yn/yn="y"/' > non_interactive_installer.sh
+        chmod +x non_interactive_installer.sh
         
-        # Download the installer script
-        curl -s https://opendata.xenovate.dpdns.org/docs/rexon/installer.sh > installer.sh
-        chmod +x installer.sh
-        
-        # Create a more robust expect script for macOS
-        cat > macos_install.exp << 'EOF'
-        #!/usr/bin/expect -f
-        
-        # Set a longer timeout
-        set timeout 1200
-        
-        # Run the installer
-        spawn ./installer.sh
-        
-        # Wait for JDK prompt and send Enter to accept default
-        expect "Choose JDK version*default: 17*: "
-        send "\r"
-        
-        # Wait for PlayIt prompt and send yes
-        expect "*PlayIt*"
-        send "yes\r"
-        
-        # Wait for completion
-        expect eof
-        EOF
-        
-        # Make it executable
-        chmod +x macos_install.exp
-        
-        # Run with detailed logging
-        ./macos_install.exp
+        # Run the modified script
+        ./non_interactive_installer.sh
